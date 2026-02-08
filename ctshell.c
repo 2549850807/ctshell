@@ -10,9 +10,17 @@
 #include <stdlib.h>
 #include <setjmp.h>
 
-/* Linker symbols for command section */
+#if defined(__CC_ARM) || defined(__ARMCC_VERSION)
+extern const ctshell_cmd_t Image$$CtshellCmdSection$$Base;
+extern const ctshell_cmd_t Image$$CtshellCmdSection$$Limit;
+#define CMD_START (&Image$$CtshellCmdSection$$Base)
+#define CMD_END   (&Image$$CtshellCmdSection$$Limit)
+#elif defined(__GNUC__) || defined(__clang__)
 extern const ctshell_cmd_t __start_ctshell_cmd_section;
 extern const ctshell_cmd_t __stop_ctshell_cmd_section;
+#define CMD_START (&__start_ctshell_cmd_section)
+#define CMD_END   (&__stop_ctshell_cmd_section)
+#endif
 
 static ctshell_ctx_t *g_ctshell_ctx = NULL;
 
@@ -24,21 +32,18 @@ static const ctshell_dfa_trans_t dfa_table[] = {
         {CTSHELL_DFA_ROOT, CTSHELL_KEY_TAB,        CTSHELL_DFA_ROOT, CTSHELL_EVT_TAB},
         {CTSHELL_DFA_ROOT, CTSHELL_KEY_CTRL_C,     CTSHELL_DFA_ROOT, CTSHELL_EVT_CTRL_C},
         {CTSHELL_DFA_ROOT, CTSHELL_KEY_ESC,        CTSHELL_DFA_ESC,  CTSHELL_EVT_NONE},
-        {CTSHELL_DFA_ESC, '[',                CTSHELL_DFA_CSI,  CTSHELL_EVT_NONE},
-        {CTSHELL_DFA_CSI, 'A',                CTSHELL_DFA_ROOT, CTSHELL_EVT_UP},
-        {CTSHELL_DFA_CSI, 'B',                CTSHELL_DFA_ROOT, CTSHELL_EVT_DOWN},
-        {CTSHELL_DFA_CSI, 'C',                CTSHELL_DFA_ROOT, CTSHELL_EVT_RIGHT},
-        {CTSHELL_DFA_CSI, 'D',                CTSHELL_DFA_ROOT, CTSHELL_EVT_LEFT},
+        {CTSHELL_DFA_ESC, '[',                     CTSHELL_DFA_CSI,  CTSHELL_EVT_NONE},
+        {CTSHELL_DFA_CSI, 'A',                     CTSHELL_DFA_ROOT, CTSHELL_EVT_UP},
+        {CTSHELL_DFA_CSI, 'B',                     CTSHELL_DFA_ROOT, CTSHELL_EVT_DOWN},
+        {CTSHELL_DFA_CSI, 'C',                     CTSHELL_DFA_ROOT, CTSHELL_EVT_RIGHT},
+        {CTSHELL_DFA_CSI, 'D',                     CTSHELL_DFA_ROOT, CTSHELL_EVT_LEFT},
 };
 
 #define DFA_TABLE_SIZE (sizeof(dfa_table) / sizeof(ctshell_dfa_trans_t))
 
-static const ctshell_cmd_t *get_cmd_start(void) { return &__start_ctshell_cmd_section; }
-static const ctshell_cmd_t *get_cmd_end(void)   { return &__stop_ctshell_cmd_section; }
-
 static void ctshell_write(ctshell_ctx_t *ctx, const char *str, int len) {
     if (ctx && ctx->io.write && str && len > 0) {
-        ctx->io.write(str, (uint16_t)len, ctx->priv);
+        ctx->io.write(str, (uint16_t) len, ctx->priv);
     }
 }
 
@@ -56,11 +61,11 @@ void ctshell_printf(const char *fmt, ...) {
     va_end(args);
 
     if (len > 0) {
-        g_ctshell_ctx->io.write(buf, (uint16_t)len, g_ctshell_ctx->priv);
+        g_ctshell_ctx->io.write(buf, (uint16_t) len, g_ctshell_ctx->priv);
     }
 }
 
-static void ctshell_cursor_left(ctshell_ctx_t *ctx)  { ctshell_puts(ctx, "\033[D"); }
+static void ctshell_cursor_left(ctshell_ctx_t *ctx) { ctshell_puts(ctx, "\033[D"); }
 static void ctshell_cursor_right(ctshell_ctx_t *ctx) { ctshell_puts(ctx, "\033[C"); }
 
 static void ctshell_redraw_tail(ctshell_ctx_t *ctx) {
@@ -129,7 +134,7 @@ static int ctshell_expand_vars(ctshell_ctx_t *ctx) {
         char *end = p + 1;
         int n_len = 0;
 
-        while (*end && (isalnum((int)*end) || *end == '_') && n_len < CTSHELL_VAR_NAME_LEN - 1) {
+        while (*end && (isalnum((int) *end) || *end == '_') && n_len < CTSHELL_VAR_NAME_LEN - 1) {
             var_name[n_len++] = *end++;
         }
         var_name[n_len] = '\0';
@@ -186,8 +191,8 @@ static int is_first_token(const char *buf, int len) {
 static void ctshell_tab_complete(ctshell_ctx_t *ctx) {
     if (ctx->line_len == 0 || !is_first_token(ctx->line_buf, ctx->line_len)) return;
 
-    const ctshell_cmd_t *cmd = get_cmd_start();
-    const ctshell_cmd_t *end = get_cmd_end();
+    const ctshell_cmd_t *cmd = CMD_START;
+    const ctshell_cmd_t *end = CMD_END;
     int match_count = 0;
     const ctshell_cmd_t *match = NULL;
 
@@ -210,10 +215,9 @@ static void ctshell_tab_complete(ctshell_ctx_t *ctx) {
         }
         ctx->line_buf[ctx->line_len] = '\0';
         ctx->cur_pos = ctx->line_len;
-    }
-    else {
+    } else {
         ctshell_puts(ctx, "\r\n");
-        for (cmd = get_cmd_start(); cmd < end; cmd++) {
+        for (cmd = CMD_START; cmd < end; cmd++) {
             if (strncmp(cmd->name, ctx->line_buf, ctx->line_len) == 0) {
                 ctshell_printf("%s  ", cmd->name);
             }
@@ -251,8 +255,8 @@ static void ctshell_exec(ctshell_ctx_t *ctx) {
 
     if (argc == 0) return;
 
-    const ctshell_cmd_t *cmd = get_cmd_start();
-    const ctshell_cmd_t *end = get_cmd_end();
+    const ctshell_cmd_t *cmd = CMD_START;
+    const ctshell_cmd_t *end = CMD_END;
     int found = 0;
 
     for (; cmd < end; cmd++) {
@@ -389,7 +393,7 @@ static const event_handler_t action_map[] = {
 static void ctshell_handle_byte(ctshell_ctx_t *ctx, char byte) {
     ctshell_key_event_t evt = dfa_parse(ctx, byte);
 
-    if (evt != CTSHELL_EVT_NONE && evt < (sizeof(action_map)/sizeof(action_map[0]))) {
+    if (evt != CTSHELL_EVT_NONE && evt < (sizeof(action_map) / sizeof(action_map[0]))) {
         event_handler_t handler = action_map[evt];
         if (handler) {
             handler(ctx, byte);
@@ -463,15 +467,19 @@ static void _add_arg(ctshell_arg_parser_t *p, const char *flag, const char *key,
 void ctshell_expect_int(ctshell_arg_parser_t *p, const char *flag, const char *key) {
     _add_arg(p, flag, key, CTSHELL_ARG_INT);
 }
+
 void ctshell_expect_str(ctshell_arg_parser_t *p, const char *flag, const char *key) {
     _add_arg(p, flag, key, CTSHELL_ARG_STR);
 }
+
 void ctshell_expect_bool(ctshell_arg_parser_t *p, const char *flag, const char *key) {
     _add_arg(p, flag, key, CTSHELL_ARG_BOOL);
 }
+
 void ctshell_expect_verb(ctshell_arg_parser_t *p, const char *verb_name) {
     _add_arg(p, verb_name, verb_name, CTSHELL_ARG_VERB);
 }
+
 #ifdef CTSHELL_USE_DOUBLE
 void ctshell_expect_double(ctshell_arg_parser_t *p, const char *flag, const char *key) {
     _add_arg(p, flag, key, CTSHELL_ARG_DOUBLE);
@@ -495,13 +503,11 @@ void ctshell_args_parse(ctshell_arg_parser_t *p) {
 
                 if (def->type == CTSHELL_ARG_BOOL) {
                     def->value.b_val = 1;
-                }
-                else if (k + 1 < p->argc) {
+                } else if (k + 1 < p->argc) {
                     if (def->type == CTSHELL_ARG_INT) {
-                        def->value.i_val = (int)strtol(p->argv[k+1], NULL, 0);
-                    }
-                    else if (def->type == CTSHELL_ARG_STR) {
-                        def->value.s_val = p->argv[k+1];
+                        def->value.i_val = (int) strtol(p->argv[k + 1], NULL, 0);
+                    } else if (def->type == CTSHELL_ARG_STR) {
+                        def->value.s_val = p->argv[k + 1];
                     }
 #ifdef CTSHELL_USE_DOUBLE
                     else if (def->type == CTSHELL_ARG_DOUBLE) {
@@ -515,7 +521,7 @@ void ctshell_args_parse(ctshell_arg_parser_t *p) {
     }
 }
 
-static ctshell_arg_def_t* _find_res(ctshell_arg_parser_t *p, const char *key) {
+static ctshell_arg_def_t *_find_res(ctshell_arg_parser_t *p, const char *key) {
     for (int i = 0; i < p->count; i++) {
         const char *target = p->args[i].key ? p->args[i].key : p->args[i].flag;
         if (strcmp(target, key) == 0) return &p->args[i];
@@ -528,7 +534,7 @@ int ctshell_get_int(ctshell_arg_parser_t *p, const char *key) {
     return (d && d->found) ? d->value.i_val : 0;
 }
 
-char* ctshell_get_str(ctshell_arg_parser_t *p, const char *key) {
+char *ctshell_get_str(ctshell_arg_parser_t *p, const char *key) {
     ctshell_arg_def_t *d = _find_res(p, key);
     return (d && d->found) ? d->value.s_val : NULL;
 }
@@ -555,8 +561,8 @@ static int cmd_help(int argc, char *argv[]) {
         ctshell_printf("Usage: help\r\n");
         return 0;
     }
-    const ctshell_cmd_t *cmd = get_cmd_start();
-    const ctshell_cmd_t *end = get_cmd_end();
+    const ctshell_cmd_t *cmd = CMD_START;
+    const ctshell_cmd_t *end = CMD_END;
     ctshell_printf("Available commands:\r\n");
     for (; cmd < end; cmd++) {
         ctshell_printf("  %-10s : %s\r\n", cmd->name, cmd->desc);

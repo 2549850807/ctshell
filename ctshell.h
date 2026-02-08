@@ -22,7 +22,7 @@ extern "C" {
 #define CTSHELL_VAR_MAX_COUNT       8
 #define CTSHELL_VAR_NAME_LEN        16
 #define CTSHELL_VAR_VAL_LEN         32
-#define CTSHELL_FIFO_SIZE 128
+#define CTSHELL_FIFO_SIZE           128
 #define CTSHELL_PROMPT              "ctsh>> "
 
 #define ctshell_error(fmt, ...)   ctshell_printf("Error: " fmt "\r\n", ##__VA_ARGS__)
@@ -155,7 +155,7 @@ typedef struct {
     ctshell_cmd_func_t func;
 } ctshell_cmd_t;
 
-#if defined(__GNUC__) || defined(__clang__)
+#if defined(__GNUC__) || defined(__clang__) || defined(__CC_ARM)
 #define CTSHELL_SECTION(x) __attribute__((section(x)))
 #define CTSHELL_USED       __attribute__((used))
 #define CTSHELL_ALIGN      __attribute__((aligned(sizeof(void*))))
