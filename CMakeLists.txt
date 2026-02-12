@@ -6,43 +6,46 @@ set(ctshell_incs
         "${CMAKE_CURRENT_SOURCE_DIR}"
 )
 
+set(CTSHELL_DEFINITIONS "")
+
 if(ESP_PLATFORM)
     set(CONFIG_CTSHELL_PORT_ESP32 1)
 endif()
 
+if(CONFIG_CTSHELL_PORT_POSIX)
+    list(APPEND ctshell_srcs "${CMAKE_CURRENT_SOURCE_DIR}/port/posix/ctshell_posix.c")
+    list(APPEND ctshell_incs "${CMAKE_CURRENT_SOURCE_DIR}/port/posix")
+    list(APPEND definitions_list "CONFIG_CTSHELL_PORT_POSIX=1")
+endif()
+
 if(CONFIG_CTSHELL_PORT_WINDOWS)
-    list(APPEND ctshell_srcs
-            "${CMAKE_CURRENT_SOURCE_DIR}/port/windows/ctshell_windows.c"
-    )
-    list(APPEND ctshell_incs
-            "${CMAKE_CURRENT_SOURCE_DIR}/port/windows"
-    )
+    list(APPEND ctshell_srcs "${CMAKE_CURRENT_SOURCE_DIR}/port/windows/ctshell_windows.c")
+    list(APPEND ctshell_incs "${CMAKE_CURRENT_SOURCE_DIR}/port/windows")
+    list(APPEND definitions_list "CONFIG_CTSHELL_PORT_WINDOWS=1")
 endif()
 
 if(CONFIG_CTSHELL_PORT_STM32)
-    list(APPEND ctshell_srcs
-            "${CMAKE_CURRENT_SOURCE_DIR}/port/stm32/ctshell_stm32.c"
-    )
-    list(APPEND ctshell_incs
-            "${CMAKE_CURRENT_SOURCE_DIR}/port/stm32"
-    )
+    list(APPEND ctshell_srcs "${CMAKE_CURRENT_SOURCE_DIR}/port/stm32/ctshell_stm32.c")
+    list(APPEND ctshell_incs "${CMAKE_CURRENT_SOURCE_DIR}/port/stm32")
+    list(APPEND definitions_list "CONFIG_CTSHELL_PORT_STM32=1")
 endif()
 
 if(CONFIG_CTSHELL_PORT_ESP32)
-    list(APPEND ctshell_srcs
-            "${CMAKE_CURRENT_SOURCE_DIR}/port/esp32/ctshell_esp32.c"
-    )
-    list(APPEND ctshell_incs
-            "${CMAKE_CURRENT_SOURCE_DIR}/port/esp32"
-    )
+    list(APPEND ctshell_srcs "${CMAKE_CURRENT_SOURCE_DIR}/port/esp32/ctshell_esp32.c")
+    list(APPEND ctshell_incs "${CMAKE_CURRENT_SOURCE_DIR}/port/esp32")
+    list(APPEND definitions_list "CONFIG_CTSHELL_PORT_ESP32=1")
 endif()
 
 if(CONFIG_CTSHELL_USE_FS)
+    list(APPEND definitions_list "CONFIG_CTSHELL_USE_FS=1")
     if(CONFIG_CTSHELL_USE_FS_FATFS)
-        list(APPEND ctshell_srcs
-                "${CMAKE_CURRENT_SOURCE_DIR}/extension/fs/ctshell_fatfs.c"
-        )
+        list(APPEND ctshell_srcs "${CMAKE_CURRENT_SOURCE_DIR}/extension/fs/ctshell_fatfs.c")
+        list(APPEND definitions_list "CONFIG_CTSHELL_USE_FS_FATFS=1")
     endif()
+endif()
+
+if(CONFIG_CTSHELL_USE_DOUBLE)
+    list(APPEND definitions_list "CONFIG_CTSHELL_USE_DOUBLE=1")
 endif()
 
 set(ctshell_srcs ${ctshell_srcs} CACHE INTERNAL "ctshell source files")
@@ -60,13 +63,5 @@ if(ESP_PLATFORM)
 
     target_link_libraries(${COMPONENT_LIB} INTERFACE "-T ${CMAKE_CURRENT_SOURCE_DIR}/port/esp32/ctshell_cmd.ld")
 else()
-    set(CTSHELL_DEFINITIONS
-            CONFIG_CTSHELL_PORT_STM32=${CONFIG_CTSHELL_PORT_STM32}
-            CONFIG_CTSHELL_PORT_ESP32=${CONFIG_CTSHELL_PORT_ESP32}
-            CONFIG_CTSHELL_PORT_WINDOWS=${CONFIG_CTSHELL_PORT_WINDOWS}
-            CONFIG_CTSHELL_USE_FS=${CONFIG_CTSHELL_USE_FS}
-            CONFIG_CTSHELL_USE_FS_FATFS=${CONFIG_CTSHELL_USE_FS_FATFS}
-            CONFIG_CTSHELL_USE_DOUBLE=${CONFIG_CTSHELL_USE_DOUBLE}
-    )
     set(CTSHELL_DEFINITIONS ${CTSHELL_DEFINITIONS} CACHE INTERNAL "ctshell definitions")
 endif()
